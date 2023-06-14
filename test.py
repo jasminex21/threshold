@@ -1,7 +1,7 @@
 import numpy as np
 
 def square(x):
-    """Returns the squared elements in x."""
+    """Returns the squared elements in array x."""
 
     return x**2
 
