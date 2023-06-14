@@ -1,0 +1,20 @@
+# requirements for deepseize's development environment
+name: threshold
+dependencies:
+  - numpy
+  - scipy
+  - matplotlib
+  - ipython
+  - notebook
+  # testing
+  - pytest
+  - pytest-cov
+    # Linting & format
+  - isort
+  - mypy
+  - pylint
+  # pypi packages
+  - pip
+  - pip:
+    - pytest-lazy-fixture
+    - openseize

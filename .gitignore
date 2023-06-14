@@ -1,0 +1,42 @@
+# Compiled code
+*.pyc
+*.json
+*.pkl
+*.png
+*.swp
+*.npy
+*.npz
+*.edf
+*.txt
+
+# raw graphics
+*.svg
+
+# distribution / packaging
+*.egg
+*.egg-info/
+dist/
+
+# paper files
+*.bak
+
+# ignore builds of websites
+site/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+#sandbox
+sandbox/
+
+#Deprecated
+__depr__/
+
+# C extensions
+*.so
+
+# ipython nb checkpoints
+*.ipynb_checkpoints
+
