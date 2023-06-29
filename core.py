@@ -2,8 +2,9 @@
 produced data that has been filtered to remove extreme events.
 
 Functions:
-    threshold: A function that returns indices of a producer that exceed a float
-    multiple of the local standard deviation.
+    threshold:
+        A function that returns indices of a producer that exceed a float
+        multiple of the local standard deviation.
 """
 
 from typing import Optional
@@ -19,7 +20,7 @@ def threshold(pro: Producer,
               nstds: float,
               chunksize: Optional[int]=None, axis:
               int=-1
-) -> npt.NDArray:
+) -> Producer:
     """Returns a producer where normalized samples exceeding nstds has been
     removed along axis.
 
@@ -77,45 +78,47 @@ def threshold(pro: Producer,
     mask[indices] = False
     return producer(pro, pro.chunksize, pro.axis, mask=mask)
 
-def psd_estimator(pro: Producer, fs: float, **kwargs):
-    """ """
+def plot(cnt: int,
+        freqs: npt.NDArray[np.float64],
+        estimates: npt.NDArray[np.float64],
+        plt_axes: npt.NDArray,
+        label: str,
+        norm: bool = True,
+        **kwargs):
+    """Plots the Power Spectral Density by channel
+ 
+    Args:
+        cnt:
+            The number of windows used to estimate the PSD
+        freqs:
+            A 1-D array of frequencies at which the PSD is estimated
+        estimates:
+            A 2-D array of estimates for the PSD, one per channel 
+        plt_axes:
+            Matplotlib axes array upon which the PSD is plotted
+        label:
+            String label to be placed in the plot legend
+        norm:
+            Boolean determining whether to normalize the PSD by the total power 
+            between start and stop indices
+        kwargs:
+            Any valid keyword argument for openseize power_norm.
 
-    return estimators.psd(pro, fs, **kwargs)
+    Returns:
+        A matplotlib axes instance.
+    """
 
-def channel_plot(cnt, freqs, estimates, plt_axes, label, norm=True, **kwargs):
-    """ """
-
-    estimates = metrics.power_norm(estimates, **kwargs) if norm else estimates
-    ci_upper, ci_lower = metrics.confidence_interval(estimates, cnt)
+    estimates = metrics.power_norm(estimates, freqs, **kwargs) if norm else estimates
+    cints = metrics.confidence_interval(estimates, cnt)
 
     for ch_idx, psd in enumerate(estimates):
+        ci_upper, ci_lower = cints[ch_idx]
         plt_axes[ch_idx].plot(freqs, psd, label=label)
         plotting.banded(freqs, ci_upper, ci_lower, plt_axes[ch_idx])
         plt_axes[ch_idx].set_title(f'Channel {ch_idx}')
 
     plt_axes[0].set_xlabel('Frequency (Hz)', fontsize = 16)
     plt_axes[0].set_ylabel(r'PSD ($\mu V^2 / Hz$)', fontsize = 16)
+    plt_axes[-1].legend()
 
-    return plt_axes
-            
-
-
-
-
-
-
-
-
-if __name__ == '__main__':
-
-
-    from openseize import demos
-    from openseize.file_io import edf
-    path = demos.paths.locate('recording_001.edf')
-    reader = edf.Reader(path)
-    reader.channels = [0,1,2]
-    pro = producer(reader, chunksize=1e6, axis=-1)
-
-    #results = threshold(pro, 2) # 2 stds is 95% of data
-    indices = np.arange(100)
-    mpro = masker(pro, indices)
+    return plt_axes         
