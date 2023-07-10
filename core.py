@@ -7,13 +7,15 @@ Functions:
         multiple of the local standard deviation.
 """
 
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Sequence, Union
 
 import numpy as np
 import numpy.typing as npt
 from openseize import producer
 from openseize.core.producer import Producer
-from openseize.spectra import estimators, metrics, plotting
+from openseize.file_io.annotations import Pinnacle
+from openseize.spectra import metrics, plotting
 
 
 def threshold(pro: Producer,
@@ -78,6 +80,54 @@ def threshold(pro: Producer,
     mask[indices] = False
     return producer(pro, pro.chunksize, pro.axis, mask=mask)
 
+def read_pinnacle(path: Union[str, Path],
+                  labels: Sequence[str],
+                  relative_to: Optional[str] = None,
+                  **kwargs):
+    """Reads pinnacle annotations from file located at path with labels.
+
+    Args:
+        path:
+            The pinnacle fmt. annotation file to read.
+        labels:
+            The annotation labels to return.
+        relative_to:
+            An annotation from which the times of all other annotations are
+            relative to.
+        kwargs:
+            Any valid kwarg for the Pinnacle reader initializer.
+    """
+
+    all_labels = labels + [relative_to] if relative_to else []
+    with Pinnacle(path, **kwargs) as reader:
+        annotes = reader.read(all_labels)
+
+    if relative_to:
+        idx = [idx for idx, ann in enumerate(annotes)
+                if ann.label == relative_to][0]
+        relative_annote = annotes.pop(idx)
+        init_time = relative_annote.time
+    else:
+        init_time = 0
+
+    return [ann.time - init_time for ann in annotes]
+
+def produce_between(pro, start, stop):
+    """Returns a producer that produces values between start and stop.
+
+    Args:
+        pro:
+            A producer to produce values between start and stop.
+        start:
+            The start index of value production.
+        stop:
+            The stop index of value production.
+    """
+
+    mask = np.zeros(pro.shape[pro.axis], dtype=bool)
+    mask[start:stop] = True
+    return producer(pro, pro.chunksize, pro.axis, mask=mask)
+
 def plot(cnt: int,
         freqs: npt.NDArray[np.float64],
         estimates: npt.NDArray[np.float64],
@@ -86,20 +136,20 @@ def plot(cnt: int,
         norm: bool = True,
         **kwargs):
     """Plots the Power Spectral Density by channel
- 
+
     Args:
         cnt:
             The number of windows used to estimate the PSD
         freqs:
             A 1-D array of frequencies at which the PSD is estimated
         estimates:
-            A 2-D array of estimates for the PSD, one per channel 
+            A 2-D array of estimates for the PSD, one per channel
         plt_axes:
             Matplotlib axes array upon which the PSD is plotted
         label:
             String label to be placed in the plot legend
         norm:
-            Boolean determining whether to normalize the PSD by the total power 
+            Boolean determining whether to normalize the PSD by the total power
             between start and stop indices
         kwargs:
             Any valid keyword argument for openseize power_norm.
@@ -121,4 +171,4 @@ def plot(cnt: int,
     plt_axes[0].set_ylabel(r'PSD ($\mu V^2 / Hz$)', fontsize = 16)
     plt_axes[-1].legend()
 
-    return plt_axes         
+    return plt_axes
