@@ -98,7 +98,7 @@ def read_pinnacle(path: Union[str, Path],
             Any valid kwarg for the Pinnacle reader initializer.
     """
 
-    all_labels = labels + [relative_to] if relative_to else []
+    all_labels = labels + [relative_to] if relative_to else labels
     with Pinnacle(path, **kwargs) as reader:
         annotes = reader.read(all_labels)
 
@@ -110,7 +110,9 @@ def read_pinnacle(path: Union[str, Path],
     else:
         init_time = 0
 
-    return [ann.time - init_time for ann in annotes]
+    for annote in annotes:
+        annote.time - init_time
+    return annotes
 
 def produce_between(pro, start, stop):
     """Returns a producer that produces values between start and stop.
