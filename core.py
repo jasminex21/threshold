@@ -7,6 +7,7 @@ Functions:
         multiple of the local standard deviation.
 """
 
+import csv
 from pathlib import Path
 from typing import Optional, Sequence, Union
 
@@ -111,24 +112,25 @@ def read_pinnacle(path: Union[str, Path],
         init_time = 0
 
     for annote in annotes:
-        annote.time - init_time
+        annote.time = annote.time - init_time
     return annotes
 
-def produce_between(pro, start, stop):
-    """Returns a producer that produces values between start and stop.
+
+def read_spindle(path, col=1):
+    """Reads all the states in a spindle file.
 
     Args:
-        pro:
-            A producer to produce values between start and stop.
-        start:
-            The start index of value production.
-        stop:
-            The stop index of value production.
+        path:
+            The path to a spindle csv file.
+    
+    Returns:
+        A list of states one per row in spindle file.
     """
 
-    mask = np.zeros(pro.shape[pro.axis], dtype=bool)
-    mask[start:stop] = True
-    return producer(pro, pro.chunksize, pro.axis, mask=mask)
+    with open(path) as infile:
+        reader = csv.reader(infile)
+        return [row[col] for row in reader]
+
 
 def plot(cnt: int,
         freqs: npt.NDArray[np.float64],
