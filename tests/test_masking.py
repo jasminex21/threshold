@@ -15,6 +15,7 @@ from pytest_lazyfixture import lazy_fixture
 from openseize import producer
 from openseize.core.arraytools import slice_along_axis
 from openseize.demos import paths
+from openseize.file_io import edf
 from openseize.file_io.annotations import Pinnacle
 
 from threshold import core, masking
@@ -62,58 +63,21 @@ def random4D(rng, request):
     yield np.transpose(rng.random((100012, 2, 3, 3)), axes=axes)
 
 
-# use lazy fixtures to pass parameterized fixtures into test
-@pytest.mark.parametrize('arr', 
-    [
-        lazy_fixture('random1D'), 
-        lazy_fixture('random2D'), 
-        lazy_fixture('random3D'),
-        lazy_fixture('random4D'),
-    ]
-)
-def test_produce_between_dims(arr):
-    """Test that produce_between produces the correct samples for producers with
-    1-4 dimensions."""
+def test_between_pro(rng):
+    """Validate that between_pro generates the correct ndarrays."""
 
-    axis = np.argmax(arr.shape)
-    pro = producer(arr, axis=axis, chunksize=10223)
-
-    start, stop = 33, 1096
-    pro_bw = core.produce_between(pro, start, stop)
-
-    probe = pro_bw.to_array()
-    actual = slice_along_axis(arr, start, stop, axis=axis)
-    assert np.allclose(probe, actual)
-
-
-def test_produce_between_indices(rng):
-    """Test that produce beteween produces correct values for 100 start and
-    stops on a random 2D array."""
-
-    # generate random array with samples on axis=-1 and build producer
-    arr = rng.random((4, 231098))
-    pro = producer(arr, axis=-1, chunksize=10223)
-    nsamples = pro.shape[-1]
     
-    # select 100 random starts and stops
-    starts = rng.choice(np.arange(nsamples), size=100, replace=False, axis=-1)
-    stops = np.minimum(starts + 90, nsamples)
-    
+    path = paths.locate('recording_001.edf')
+    reader = edf.Reader(path)
+
+    starts = rng.integers(int(15e6), size=100)
+    stops = starts + rng.integers(10, int(2e6), size=100)
     for start, stop in zip(starts, stops):
 
-        pro_bw = core.produce_between(pro, start, stop) 
-        
-        probe = pro_bw.to_array()
-        actual = arr[..., start:stop]
-        assert np.allclose(probe, actual)
+        pro = masking.between_pro(reader, start, stop, reader.channels,
+                                  chunksize=(stop-start)//5)
+        assert np.allclose(pro.to_array(), reader.read(start, stop))
 
-
-def test_masked_between():
-    """Validate that a between producer with mask produces the correct
-    values."""
-
-    # this test will be finished once masked pro in openseize is optimized
-    pass
 
 
 def make_spindle(states):
