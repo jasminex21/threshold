@@ -70,13 +70,13 @@ def artifact_mask(path, size, labels, fs, relative_to, start=6, **kwargs):
         kwargs:
             Any valid kwarg for core.read_pinnacle function.
 
-        Returns:
-            A 1-D boolean mask where indices whose label is in labels are False
-            and all non-label indices are True.
+    Returns:
+        A 1-D boolean mask where indices whose label is in labels are False
+        and all non-label indices are True.
         """
 
-        annotes = core.read_pinnacle(path, labels, relative_to, start, **kwargs)
-        return annotations.as_mask(annotes, size, fs, include=False)
+    annotes = core.read_pinnacle(path, labels, relative_to, start, **kwargs)
+    return annotations.as_mask(annotes, size, fs, include=False)
 
 
 def _between_gen(reader, start, stop, chunksize, axis):
