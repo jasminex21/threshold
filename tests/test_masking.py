@@ -64,20 +64,22 @@ def random4D(rng, request):
 
 
 def test_between_pro(rng):
-    """Validate that between_pro generates the correct ndarrays."""
-
+    """Validate that between_pro generates the correct ndarrays for openseizes
+    sample data."""
     
     path = paths.locate('recording_001.edf')
     reader = edf.Reader(path)
-
+    
+    # build 100 producers from random starts and stops
     starts = rng.integers(int(15e6), size=100)
     stops = starts + rng.integers(10, int(2e6), size=100)
     for start, stop in zip(starts, stops):
 
         pro = masking.between_pro(reader, start, stop, reader.channels,
                                   chunksize=(stop-start)//5)
+        
+        # verify produced matches reader's read samples
         assert np.allclose(pro.to_array(), reader.read(start, stop))
-
 
 
 def make_spindle(states):
