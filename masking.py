@@ -1,5 +1,5 @@
 import csv
-from functools import partial
+import functools
 from itertools import zip_longest
 from typing import List, Optional, Union
 from pathlib import Path
@@ -71,9 +71,9 @@ def threshold(pro: Producer,
     indices = np.concatenate(results)
     mask = np.ones(pro.shape[pro.axis], dtype=bool)
     mask[indices] = False
-    return producer(pro, pro.chunksize, pro.axis, mask=mask)
+    return mask
 
-def state_mask(path, labels, fs, winsize, include=True, **kwargs):
+def state(path, labels, fs, winsize, include=True, **kwargs):
     """Returns a boolean mask from a spindle sleep score text file.
 
     Args:
@@ -109,7 +109,7 @@ def state_mask(path, labels, fs, winsize, include=True, **kwargs):
     result = np.repeat(mask, fs * winsize, axis=0)
     return result.flatten(order='F')
 
-def artifact_mask(path, size, labels, fs, relative_to, start=6, **kwargs):
+def artifact(path, size, labels, fs, relative_to, start=6, **kwargs):
     """Returns a boolean mask from a Pinnacle annotations file.
 
     Args:
@@ -199,8 +199,8 @@ def between_pro(reader, start, stop, chunksize, axis=-1):
     """
 
     # build a partial freezing all arg of _between_gen
-    gen_func = partial(_between_gen, reader, start, stop, chunksize, axis)
-
+    gen_func = functools.partial(_between_gen, reader, start, stop, chunksize, 
+                                 axis)
     # compute the shape of the new producer
     shape = list(reader.shape)
     shape[axis] = stop - start
@@ -208,6 +208,48 @@ def between_pro(reader, start, stop, chunksize, axis=-1):
     return producer(gen_func, chunksize, axis, shape=shape)
     
 
+class Multimask:
+    """A factory that combines multiple 1-D boolean masks into a single boolean
+    mask using any logical callable.
+
+    Attributes:
+        logical:
+            A callable that applies element-wise logic to combine each appended
+            mask into a single 1-D boolean mask.
+        mask:
+            A 1-D boolean array composed of the logical combination of each
+            appended mask to this multimask.
+    
+    Examples:
+        >>> arrs = [[1,0,1,0], [1,1,1,0], [1,0,1,1]]
+        >>> masker = Multimask()
+        >>> # set the protected _mask attr directly
+        >>> masker._masks = arrs
+        >>> masker.mask
+        array([True, False, True, False])
+    """
+
+    def __init__(self, logical=np.logical_and):
+        """Initialize this multimask.
+
+        Args:
+            logical:
+                Any callable that takes multiple mask and returns a single mask.
+                Defaults to numpy's logical_and.
+        """
+
+        self._masks = []
+
+    def append(self, func, *args, **kwargs):
+        """Constructs a mask from a function & stores to this Multimask."""
+
+        self._mask.append(func(*args, **kwargs))
+
+    @property
+    def mask(self):
+        """Returns the combined mask of all appended masks in this Multimask."""
+
+        return functools.reduce(self.logical, self._mask)
 
 
 if __name__ == '__main__':
