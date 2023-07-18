@@ -33,14 +33,7 @@ from threshold import masking
 #
 
 
-def preprocess(reader, 
-               annotes,
-               start, 
-               stop,
-               fs,
-               M,
-               chunksize=30e6,
-               axis=-1):
+def preprocess(reader, annotes, start, stop, fs, M, chunksize=30e6, axis=-1):
     """Notch filters and downsamples data produced from a reader between start
     and stop annotations.
 
@@ -58,41 +51,6 @@ def preprocess(reader,
     # downsample the producer
     result = resampling.downsample(result, M, fs, chunksize, axis)
     return result
-
-def annotated_pro(pro,
-                  annotes,
-                  ann_labels,
-                  fs,
-                  states=None,
-                  state_labels=None,
-                  winsize=4):
-    """ """
-
-    # FIXME these now take annotes and states not paths as in masking.py
-    ann_mask = annotations.as_mask(annotes, pro.shape[pro.axis], ann_labels, fs,
-                                   include=False)
-    state_mask = masking.state_mask(states, state_labels, fs, winsize)
-
-    mask = np.logical_and(ann_mask, stat_mask)
-    return producer(pro, chunksize=pro.chunksize, axis=pro.axis, mask=mask)
-
-def threshold_pro(pro,
-                  nstd,
-                  fs,
-                  chunksize,
-                  states=None,
-                  state_labels=None,
-                  winsize=4):
-    """ """
-
-    threshold_mask = masking.threshold(pro, nstd, chunksize)
-    state_mask = masking.state_mask(states, state_labels, fs, winsize)
-
-    mask = np.logical_and(ann_mask, stat_mask)
-    return producer(pro, chunksize=pro.chunksize, axis=pro.axis, mask=mask)
-
-def estimate_psd(eeg_path, ann_path, spin_path):
-    """This function will coordinate the others."""
 
 
 
