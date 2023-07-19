@@ -19,57 +19,6 @@ from openseize.file_io.annotations import Pinnacle
 from openseize.spectra import metrics, plotting
 
 
-def read_pinnacle(path: Union[str, Path],
-                  labels: Sequence[str],
-                  relative_to: Optional[str] = None,
-                  **kwargs):
-    """Reads pinnacle annotations from file located at path with labels.
-
-    Args:
-        path:
-            The pinnacle fmt. annotation file to read.
-        labels:
-            The annotation labels to return.
-        relative_to:
-            An annotation from which the times of all other annotations are
-            relative to.
-        kwargs:
-            Any valid kwarg for the Pinnacle reader initializer.
-    """
-
-    all_labels = labels + [relative_to] if relative_to else labels
-    with Pinnacle(path, **kwargs) as reader:
-        annotes = reader.read(all_labels)
-
-    if relative_to:
-        idx = [idx for idx, ann in enumerate(annotes)
-                if ann.label == relative_to][0]
-        relative_annote = annotes.pop(idx)
-        init_time = relative_annote.time
-    else:
-        init_time = 0
-
-    for annote in annotes:
-        annote.time = annote.time - init_time
-    return annotes
-
-
-def read_spindle(path, col=1):
-    """Reads all the states in a spindle file.
-
-    Args:
-        path:
-            The path to a spindle csv file.
-    
-    Returns:
-        A list of states one per row in spindle file.
-    """
-
-    with open(path) as infile:
-        reader = csv.reader(infile)
-        return [row[col] for row in reader]
-
-
 def plot(cnt: int,
         freqs: npt.NDArray[np.float64],
         estimates: npt.NDArray[np.float64],

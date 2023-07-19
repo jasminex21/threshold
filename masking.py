@@ -16,9 +16,9 @@ from threshold import core
 def threshold(pro: Producer,
               nstds: float,
               chunksize: Optional[int]=None,
-) -> Producer:
-    """Returns a producer where normalized samples exceeding nstds has been
-    removed along axis.
+) -> npt.NDArray:
+    """Returns a 1-D boolean array the same length as the producer where
+    normalized voltage values exceeding nstds are set to False.
 
     Args:
         pro:
@@ -48,7 +48,7 @@ def threshold(pro: Producer,
         True
 
     Returns:
-        An openseize producer instance.
+        A 1-D boolean mask the same length as producer along axis.
     """
 
     pro.chunksize = chunksize if chunksize else pro.chunksize
@@ -97,7 +97,10 @@ def state(path, labels, fs, winsize, include=True, **kwargs):
         A 1-D boolean array for masking data at a given sample rate.
     """
 
-    states = core.read_spindle(path, **kwargs)
+    # reads the states from a spindle formatted text file.
+    with open(path) as infile:
+        reader = csv.reader(infile)
+        states = [row[1] for row in reader]
 
     # build an negate mask
     mask = np.array([state in labels for state in states], dtype=bool)
@@ -109,7 +112,8 @@ def state(path, labels, fs, winsize, include=True, **kwargs):
     result = np.repeat(mask, fs * winsize, axis=0)
     return result.flatten(order='F')
 
-def artifact(path, size, labels, fs, relative_to, start=6, **kwargs):
+def artifact(path, size, labels, fs, between=[None, None], include=False, 
+             **kwargs):
     """Returns a boolean mask from a Pinnacle annotations file.
 
     Args:
@@ -134,11 +138,26 @@ def artifact(path, size, labels, fs, relative_to, start=6, **kwargs):
     Returns:
         A 1-D boolean mask where indices whose label is in labels are False
         and all non-label indices are True.
-        """
+    """
 
-    annotes = core.read_pinnacle(path, labels, relative_to, start, **kwargs)
-    return annotations.as_mask(annotes, size, fs, include=False)
+    headers = kwargs.pop('start', 6)
+    with annotations.Pinnacle(path, start=headers, **kwargs) as reader:
+        annotes = reader.read()
+    
+    # get the first and last annote to return annotes between
+    a, b = between
+    first = next(ann for ann in annotes if ann.label == a) if a else annotes[0]
+    last = next(ann for ann in annotes if ann.label == b) if b else annotes[-1]
+    
+    # filter the annotes by the given labels & the between labels
+    annotes = [ann for ann in annotes if ann.label in labels]
+    annotes = [ann for ann in annotes if first.time <= ann.time <= last.time]
+    # adjust the times of the annotes relative to the first & last annotes
+    for annote in annotes:
+        annote.time -= first.time
 
+    return annotations.as_mask(annotes, size, fs, include=include)
+    
 def _between_gen(reader, start, stop, chunksize, axis):
     """A generating function returns a generator of ndarrays of samples between
     start and stop.
