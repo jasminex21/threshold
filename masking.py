@@ -73,7 +73,7 @@ def threshold(pro: Producer,
     mask[indices] = False
     return mask
 
-def state(path, labels, fs, winsize, include=True, **kwargs):
+def state(path, labels, fs, winsize, include=True):
     """Returns a boolean mask from a spindle sleep score text file.
 
     Args:
@@ -90,8 +90,6 @@ def state(path, labels, fs, winsize, include=True, **kwargs):
             A boolean indicating if labels should be set to True and all others
             False or False and all others True. This option allows for inclusion
             or exclusion of labels from a mask.
-        **kwargs:
-            Any valid kwarg for the read_spindle core function.
 
     Returns:
         A 1-D boolean array for masking data at a given sample rate.
