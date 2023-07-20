@@ -31,6 +31,9 @@ __pycache__/
 #sandbox
 sandbox/
 
+# data dirs
+data/
+
 #Deprecated
 __depr__/
 
