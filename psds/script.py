@@ -11,9 +11,8 @@ from openseize import producer
 from openseize.file_io import edf
 from openseize.filtering.iir import Notch
 from openseize.resampling import resampling
-from openseize.file_io import annotations
+from openseize.file_io import annotations, edf
 
-from threshold import core
 from threshold import masking
 
 # PLAN
@@ -33,7 +32,7 @@ from threshold import masking
 #
 
 
-def preprocess(reader, annotes, start, stop, fs, M, chunksize=30e6, axis=-1):
+def preprocess(path, annotes, start, stop, fs, M, chunksize=30e6, axis=-1):
     """Notch filters and downsamples data produced from a reader between start
     and stop annotations.
 
@@ -41,6 +40,8 @@ def preprocess(reader, annotes, start, stop, fs, M, chunksize=30e6, axis=-1):
     # Fix if start or stop is None
     """
 
+    reader = edf.Reader(path)
+    reader.channels = [0, 1, 2]
     a, b = [ann.time * fs for ann in annotes if ann.label in [start, stop]]
     pro = masking.between_pro(reader, a, b, chunksize, axis)
     
@@ -52,5 +53,34 @@ def preprocess(reader, annotes, start, stop, fs, M, chunksize=30e6, axis=-1):
     result = resampling.downsample(result, M, fs, chunksize, axis)
     return result
 
+
+# FIXME want to do this for perhaps multiple genotypes in awake/sleep using
+# manual artifacts, thresholded artifacts and no artifacts. This will be easiest
+# if you wil build a dict of masks. Note some of the similarities with the
+# script in the stats module.
+def process(epath, apath, spath):
+    """ """
+
+    # open annotes
+    with annotations.Pinnacle(apath, start=6) as reader:
+        annotes = reader.read()
+   
+    # proprocess file
+    pro = preprocess(epath, annotes, start='Heet Start', stop='Heet Stop',
+                     fs=5000, M=20)
+
+    #threshold masks: 150000 @ 250 Hz is 10 mins
+    tmasks = [masking.threshold(pro, sig, chunksize=1.5e5) for sig in [1, 2, 3]]
+    
+    # manual artifact mask
+    amask = masking.artifact(apath, size, labels=['Artifact'],
+                             between=['Heet Start', 'Heet Stop'])
+    
+    # build state masks
+    states = {'awake': ['w'], 'sleep': ['r', 'n']}
+    state_masks = {name: masking.state(spath, labels=val, fs=250, winsize=4,
+                            include=True) for name, val in states.items()}
+
+    # need mask combinations here
 
 
