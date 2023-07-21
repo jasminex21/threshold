@@ -9,8 +9,7 @@ import numpy.typing as npt
 from openseize import producer
 from openseize.core.producer import Producer
 from openseize.file_io import annotations
-
-from threshold import core
+from openseize.core.mixins import ViewInstance
 
 
 def threshold(pro: Producer,
@@ -223,55 +222,36 @@ def between_pro(reader, start, stop, chunksize, axis=-1):
     shape[axis] = stop - start
 
     return producer(gen_func, chunksize, axis, shape=shape)
+
+
+class MetaMask(ViewInstance):
+    """A class that combines 1-D boolean submask with element-wise logic
+    & tracks submask metadata.
     
-
-class Multimask:
-    """A factory that combines multiple 1-D boolean masks into a single boolean
-    mask using any logical callable.
-
     Attributes:
+        submasks:
+            A sequence of 1-D boolean arrays that are to be combined into
+            a single mask.
+        names:
+            String names of each boolean array mask in submasks.
         logical:
-            A callable that applies element-wise logic to combine each appended
-            mask into a single 1-D boolean mask.
-        mask:
-            A 1-D boolean array composed of the logical combination of each
-            appended mask to this multimask.
-    
-    Examples:
-        >>> arrs = [[1,0,1,0], [1,1,1,0], [1,0,1,1]]
-        >>> masker = Multimask()
-        >>> # set the protected _mask attr directly
-        >>> masker._masks = arrs
-        >>> masker.mask
-        array([True, False, True, False])
+            A callable that accepts 2 1-D boolean arrays and returns an
+            element-wise logical combination.
+        **kwargs:
+            Any metadata that should be associated with this MetaMask instance.
+            Examples include; genotype data, paths to submasks etc.
     """
 
-    def __init__(self, logical=np.logical_and):
-        """Initialize this multimask.
+    def __init__(self, submasks, names, logical=np.logical_and, **kwargs):
+        """Initialize this MetaMask."""
 
-        Args:
-            logical:
-                Any callable that takes multiple mask and returns a single mask.
-                Defaults to numpy's logical_and.
-        """
-
-        self._masks = []
-
-    def append(self, func, *args, **kwargs):
-        """Constructs a mask from a function & stores to this Multimask."""
-
-        self._mask.append(func(*args, **kwargs))
+        self.submasks = dict(zip(names, submasks))
+        self.logical = logical
+        self.__dict__.update(**kwargs)
 
     @property
     def mask(self):
-        """Returns the combined mask of all appended masks in this Multimask."""
+        """Return the element-wise combination of all submasks in MetaMask."""
 
-        return functools.reduce(self.logical, self._mask)
+        return functools.reduce(self.logical, self.submasks.values())
 
-
-if __name__ == '__main__':
-
-    spath = ('/home/matt/python/nri/scripting/threshold/sandbox/data/'
-    'CW0DI2_P097_KO_92_30_3dayEEG_2020-05-07_09_54_11_sleep_states.csv')
-
-    mask = state_mask(path, labels=['r', 'n'], fs=250, winsize=4)
