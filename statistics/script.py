@@ -31,12 +31,43 @@ def select(regex=r'\w+', kind='askopenfilenames',
     """ """
 
     title = 'Please select STXBP1 files'
-    stxbp1_paths = matching(regex, kind, filetypes, title=title, **kwargs)
+    stxbp1_paths = matching(regex, kind, filetypes=filetypes, **kwargs)
 
     title = 'Please select UBE3A files'
-    ube3a_paths = matching(regex, kind, filetypes, title=title, **kwargs)
+    ube3a_paths = matching(regex, kind, filetypes=filetypes, **kwargs)
 
     return {'stxbp1': stxbp1_paths, 'ube3a': ube3a_paths}
+
+
+def build_masks(ann_paths, spindle_paths, genotype):
+    """ """
+    
+    # jasmine to document and add types and type check and lint
+    result = []
+    for apath, spath in zip(ann_paths, spindle_paths):
+
+        mouse_id = str(apath.stem).split('_')[0]
+        
+        awake = masking.state(spath, labels=['w'], fs=5000, winsize=4)
+        sleep = masking.state(spath, labels=['r', 'n'], fs=5000, winsize=4)
+        annote = masking.artifact(apath, len(awake), 
+                            labels=['Artifact', 'water', 'Artifact ','water '],
+                            fs=5000, between=['Start', 'Stop'], include=True)
+            
+        metamask_0 = masking.MetaMask([awake, annote], ['awake', 'annote'],
+                                    genotype=genotype, path=(spath, apath),
+                                    mouse_id=mouse_id)
+
+        metamask_1 = masking.MetaMask([sleep, annote], ['sleep', 'annote'],
+                                    genotype=genotype, path=(spath, apath),
+                                    mouse_id=mouse_id)
+
+        result.extend([metamask_0, metamask_1])
+    return result
+        
+   
+
+
 
 
 def build_dict(geno_paths):
@@ -73,10 +104,12 @@ def counts(events_dict):
     result = defaultdict(list)
     for genotype, state_dict in events_dict.items():
         for state, ls in state_dict:
-            result[genotype][state] = [arr.shape[0] for each arr in ls]
+            result[genotype][state] = [arr.shape[0] for arr in ls]
 
     return result
 
 
 
+if __name__ == '__main__':
 
+    paths = select()
