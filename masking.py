@@ -13,18 +13,19 @@ from openseize.core.mixins import ViewInstance
 
 
 def threshold(pro: Producer,
-              nstds: float,
+              nstds: List[float],
               chunksize: Optional[int]=None,
-) -> npt.NDArray:
-    """Returns a 1-D boolean array the same length as the producer where
-    normalized voltage values exceeding nstds are set to False.
+) -> List[npt.NDArray]:
+    """Returns a list of 1-D boolean arrays, one per std in nstds, that denote
+    samples from the producer whose normalized voltage values exceed that std.
+    Theses samples are marked as False.
 
     Args:
         pro:
             A producer of ndarrays of data to threshold.
         nstds:
-            A multiple of the data's standard deviation for determining extreme
-            values.
+            A list of multiples of the data's standard deviation for determining 
+            extreme values.
         chunksize:
             The number of samples the producer will produce during iteration.
             This value determines the local mean and standard deviation for
@@ -42,18 +43,21 @@ def threshold(pro: Producer,
         ...     x[row, loc_ls] = 10
         >>> # make a producer from spiked data
         >>> pro = producer(x, chunksize=100, axis=-1)
-        >>> masked_pro = threshold(pro, nstds=2)
-        >>> print(masked_pro.shape[-1] == pro.shape[-1] - len(np.unique(locs)))
+        >>> masks = threshold(pro, nstds=[2])
+        >>> mask = masks[0]
+        >>> # are the mask indices that are False equal to the locs provided?
+        >>> set(np.where(~mask)[0]) == set(locs.flatten())
         True
-
+        
     Returns:
-        A 1-D boolean mask the same length as producer along axis.
+        A list of 1-D boolean mask each having the same length as producer along 
+        axis.
     """
 
     pro.chunksize = chunksize if chunksize else pro.chunksize
     axis = pro.axis
 
-    results = []
+    masks = [np.ones(pro.shape[pro.axis], dtype=bool) for std in nstds]
     for idx, arr in enumerate(pro):
 
         mu = np.mean(arr, axis=axis, keepdims=True)
@@ -62,16 +66,13 @@ def threshold(pro: Producer,
         arr -= mu
         arr /= std
 
-        # if exceeds in one channel we say exceeds in all
-        _, cols = np.where(np.abs(arr) > nstds)
-        cols += idx * pro.chunksize
-        results.append(np.unique(cols))
+        for std, mask in zip(nstds, masks):
+            _, cols = np.where(np.abs(arr) > std)
+            cols = np.unique(cols + idx * pro.chunksize)
+            mask[cols] = False
 
-    indices = np.concatenate(results)
-    mask = np.ones(pro.shape[pro.axis], dtype=bool)
-    mask[indices] = False
-    return mask
-
+    return masks
+    
 def state(path, labels, fs, winsize, include=True):
     """Returns a boolean mask from a spindle sleep score text file.
 
@@ -122,15 +123,11 @@ def artifact(path, size, labels, fs, between=[None, None], include=False,
             The artifact labels to be designated False in returned mask.
         fs:
             The sampling rate of the data acquisition.
-        relative_to:
-            An annotation label from which all other annotations times are
-            relative to. If None, the annotations are relative to the start of
-            the recording.
-        start:
-            The line number of the file at path at which annotation reading
-            should begin. Defaults to line number 6.
+        between:
+            The start and stop annotation labels between which artifacts are
+            used in the resulting mask.
         kwargs:
-            Any valid kwarg for core.read_pinnacle function.
+            Any valid kwarg for openseize's Pinnacle reader.
 
     Returns:
         A 1-D boolean mask where indices whose label is in labels are False
@@ -254,4 +251,21 @@ class MetaMask(ViewInstance):
         """Return the element-wise combination of all submasks in MetaMask."""
 
         return functools.reduce(self.logical, self.submasks.values())
+
+if __name__ == '__main__':
+
+    from openseize.file_io import edf
+    from openseize import producer
+    import numpy as np
+    
+    # make a random array with 50 spikes in each row
+    rng = np.random.default_rng(0)
+    x = rng.normal(loc=0, scale=1.0, size=(4,1000))
+    locs = rng.choice(np.arange(1000), size=(4,50), replace=False)
+    for row, loc_ls in enumerate(locs):
+        x[row, loc_ls] = 10
+    # make a producer from spiked data
+    pro = producer(x, chunksize=100, axis=-1)
+    mask = threshold(pro, nstds=[2])[0]
+    
 
