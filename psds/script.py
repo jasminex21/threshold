@@ -7,11 +7,15 @@ local volatge threshold to remove these artifacts?
 
 """
 
+from itertools import zip_longest
+
 from openseize import producer
 from openseize.file_io import edf
 from openseize.filtering.iir import Notch
 from openseize.resampling import resampling
 from openseize.file_io import annotations, edf
+
+import time
 
 from threshold import masking
 
@@ -32,7 +36,7 @@ from threshold import masking
 #
 
 
-def preprocess(path, annotes, start, stop, fs, M, chunksize=30e6, axis=-1):
+def preprocess(path, annotes, start, stop, fs, M, chunksize=30e5, axis=-1):
     """Notch filters and downsamples data produced from a reader between start
     and stop annotations.
 
@@ -54,33 +58,70 @@ def preprocess(path, annotes, start, stop, fs, M, chunksize=30e6, axis=-1):
     return result
 
 
-# FIXME want to do this for perhaps multiple genotypes in awake/sleep using
-# manual artifacts, thresholded artifacts and no artifacts. This will be easiest
-# if you wil build a dict of masks. Note some of the similarities with the
-# script in the stats module.
-def process(epath, apath, spath):
+def build_masks(epath, apath, spath, nstds=[4,5,6]):
     """ """
 
+    # use of this function before a psd func will mean data is transversed 2X
+
+
+    t0 = time.perf_counter()
     # open annotes
     with annotations.Pinnacle(apath, start=6) as reader:
         annotes = reader.read()
    
     # proprocess file
-    pro = preprocess(epath, annotes, start='Heet Start', stop='Heet Stop',
+    pro = preprocess(epath, annotes, start='Start', stop='Stop',
                      fs=5000, M=20)
 
-    #threshold masks: 150000 @ 250 Hz is 10 mins
-    tmasks = [masking.threshold(pro, sig, chunksize=1.5e5) for sig in [1, 2, 3]]
+    # threshold masks
+    thresholds = masking.threshold(pro, nstds, chunksize=1.5e4)
+
     
     # manual artifact mask
-    amask = masking.artifact(apath, size, labels=['Artifact'],
-                             between=['Heet Start', 'Heet Stop'])
+    annote = masking.artifact(apath, size=pro.shape[-1],
+                        labels=[ 'Artifact', 'Artifact ', 'water', 'water '],
+                        fs=250, between=['Start', 'Stop'])
     
     # build state masks
-    states = {'awake': ['w'], 'sleep': ['r', 'n']}
-    state_masks = {name: masking.state(spath, labels=val, fs=250, winsize=4,
-                            include=True) for name, val in states.items()}
+    awake = masking.state(spath, ['w'], fs=250, winsize=4)
+    sleep = masking.state(spath, ['r', 'n'], fs=250, winsize=4)
 
-    # need mask combinations here
+    metamasks = []
+    # build awake and threshold masks
+    for a, b, std in zip_longest([awake], thresholds, nstds, fillvalue=awake):
+        names = ['awake', f'threshold = {std}']
+        results.append(masking.MetaMask([a, b],  names))
 
+    # build sleep and threshold masks
+    for a, b, std in zip_longest([sleep], thresholds, nstds, fillvalue=sleep):
+        names = ['sleep', f'threshold = {std}']
+        results.append(masking.MetaMask([a, b],  names))
+
+    # build awake and annotated as well as sleep and annotated
+    for a, b, names in [(awake, annote, ['awake', 'annote']),
+                        (sleep, annote, ['sleep', 'annote'])]:
+        results.append(masking.MetaMask([a, b], names))
+
+    # build awake and sleep with artifacts in place
+    for mask, name in zip([awake, sleep], ['awake', 'sleep']):
+        results.append(masking.MetaMask([mask], [name]))
+        
+
+    print(f'build masks completed in {time.perf_counter() - t0} s')
+
+    return results
+
+if __name__ == '__main__':
+
+    from pathlib import Path
+
+    base_path = Path('/media/matt/Zeus/jasmine/stxbp1/')
+    name = 'CW0DA1_P096_KO_15_53_3dayEEG_2020-04-13_08_58_30'
+    epath = base_path.joinpath(name + '.edf')
+    apath = base_path.joinpath(name + '.txt')
+    spath = base_path.joinpath(name + '_sleep_states.csv')
+
+    metamasks = build_masks(epath, apath, spath)
+
+    
 
