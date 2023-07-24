@@ -1,9 +1,18 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Jul 21 15:51:17 2023
+
+@author: jasmine
+"""
+
 """A script to construct statistical plots of the counts and durations of
 artifacts for STXBP1 and UBE3A mice.
 """
 
 from collections import defaultdict
 import numpy as np
+import matplotlib.pyplot as plt
 
 from openseize.file_io.dialogs import matching
 from threshold import masking
@@ -39,7 +48,8 @@ def select(regex=r'\w+', kind='askopenfilenames',
     return {'stxbp1': stxbp1_paths, 'ube3a': ube3a_paths}
 
 
-def build_masks(ann_paths, spindle_paths, genotype):
+
+def build_masks(ann_paths, spindle_paths, genotype): # -> list of metamasks
     """ """
     
     # jasmine to document and add types and type check and lint
@@ -51,7 +61,7 @@ def build_masks(ann_paths, spindle_paths, genotype):
         awake = masking.state(spath, labels=['w'], fs=5000, winsize=4)
         sleep = masking.state(spath, labels=['r', 'n'], fs=5000, winsize=4)
         annote = masking.artifact(apath, len(awake), 
-                            labels=['Artifact', 'water', 'Artifact ','water '],
+                            labels=['Artifact', 'water_drinking', 'Artifact ','water_drinking '],
                             fs=5000, between=['Start', 'Stop'], include=True)
             
         metamask_0 = masking.MetaMask([awake, annote], ['awake', 'annote'],
@@ -64,13 +74,30 @@ def build_masks(ann_paths, spindle_paths, genotype):
 
         result.extend([metamask_0, metamask_1])
     return result
+
+# not sure if entirely functional as intended 
+def counts(metamasks):
+    
+    art_counts = []
+    
+    for mmask in metamasks: 
+        count = masking.events(mmask.mask).shape[0]
+        art_counts.append(count)
         
-   
+    return art_counts
+    
+def durations(metamasks): 
+    
+    art_durations = []
+    
+    for mmask in metamasks: 
+        dur = sum(np.diff(masking.events(mmask.mask))) / 5000
+        art_durations.append(dur)
+        
+    return art_durations
+    
 
-
-
-
-def build_dict(geno_paths):
+def build_dict(geno_paths): 
     """ """
 
     result = {}
@@ -98,18 +125,49 @@ def build_dict(geno_paths):
             
     return result
 
-def counts(events_dict):
+def counts_old(events_dict):
     """ """
-
-    result = defaultdict(list)
+    
+    # dict instead of list
+    result = defaultdict(dict)
     for genotype, state_dict in events_dict.items():
-        for state, ls in state_dict:
+        # state_dict.items()
+        for state, ls in state_dict.items(): 
             result[genotype][state] = [arr.shape[0] for arr in ls]
 
     return result
 
 
+def durations_old(events_dict): 
+    
+    result = defaultdict(dict)
+    for genotype, state_dict in events_dict.items(): 
+        for state, ls in state_dict.items(): 
+            result[genotype][state] = [sum(np.diff(arr)).item() / 5000 for arr in ls]
+            
+    return result
+
+def create_boxplots(data_dict, title):
+    fig, axarr = plt.subplots(nrows=1, ncols=1, figsize=(8, 10))
+    
+    plot_labels = ["STXBP1 awake", "Ube3a awake", "STXBP1 asleep", "Ube3a asleep"]
+    
+    data = [data_dict["stxbp1"]["awake"], data_dict["ube3a"]["awake"], 
+            data_dict["stxbp1"]["sleep"], data_dict["ube3a"]["sleep"]]
+    
+    bplot = axarr.boxplot(data, vert=True, patch_artist=True, labels=plot_labels)
+    axarr.set_title(title)
+    
+    # colors
+    colors = ["darkolivegreen", "darkcyan"]
+    for patch, color in zip(bplot['boxes'], colors * 2):
+        patch.set_facecolor(color)
+
 
 if __name__ == '__main__':
 
     paths = select()
+    
+    stxbp1_annpaths, stxbp1_spaths = list(zip(*paths["stxbp1"]))
+    ube3a_annpaths, ube3a_spaths = list(zip(*paths["ube3a"]))
+    
