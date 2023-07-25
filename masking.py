@@ -41,7 +41,7 @@ def threshold(pro: Producer,
         >>> locs = rng.choice(np.arange(1000), size=(4,50), replace=False)
         >>> for row, loc_ls in enumerate(locs):
         ...     x[row, loc_ls] = 10
-        >>> # make a producer from spiked data
+        >>> # make a producer from spiked data and build masks
         >>> pro = producer(x, chunksize=100, axis=-1)
         >>> masks = threshold(pro, nstds=[2])
         >>> mask = masks[0]
