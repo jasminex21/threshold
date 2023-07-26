@@ -29,43 +29,29 @@ def rng():
     return np.random.default_rng(seed)
 
 
-def test_threshold():
+def test_threshold(rng):
     """Test that threshold mask detects the correct number of spikes for each
     std in nstds."""
 
-    seed = 0
-    rng = np.random.default_rng(seed)
+    # TODO add a second channel
+    csize = 1000
+    stds = range(3,7)
+    seq = np.concatenate([rng.normal(scale=s, size=csize) for s in stds])
+    seq = np.atleast_2d(seq)
 
-    sig_len = 10000
-    x = rng.normal(loc=0, scale=1, size=(4, sig_len))
-    locs = rng.choice(np.arange(sig_len), size=(4, 20), replace=False)
+    x = np.reshape(seq, (len(stds), csize))
+    x -= np.mean(x, axis=-1, keepdims=True)
+    normed = x / np.std(x, axis=-1, keepdims=True)
+    extremes = []
+    for sigma in stds:
+        cols = np.where(np.abs(normed.flatten()) > sigma)[0]
+        extremes.append(cols)
 
-    print('locs', locs)
-
-    sigma_locs = [locs[:, ::3], locs[:, 1::3], locs[:, 2::3]]
-    cnts = [len(l.flatten()) for l in sigma_locs]
-
-    
-    
-    print('sigma_locs', sigma_locs)
-    print('cnts', cnts)
-    amplitudes = [4, 5, 6]
-    for locs, amplitude in zip(sigma_locs, amplitudes):
-        for row, spike_idxs in enumerate(locs):
-            x[row, spike_idxs] = amplitude
-
-    pro = producer(x, chunksize=1000, axis=-1)
-    masks = masking.threshold(pro, nstds=amplitudes)
-    print([np.count_nonzero(m) for m in masks])
-
-    """
-    for mask, cnt in zip(masks, [sum(cnts), sum(cnts[1:]), cnts[-1]]):
-        assert np.count_nonzero(mask) == 10000 - cnt
-    """
-
-    return x, masks, sigma_locs
-
-
+    pro = producer(seq, chunksize=csize, axis=-1)
+    masks = masking.threshold(pro, stds)
+    for mask, extrema in zip(masks, extremes):
+        _, cols = np.where(np.atleast_2d(~mask))
+        assert np.allclose(cols, extrema)
 
 
 def test_between_pro(rng):
