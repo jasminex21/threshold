@@ -18,7 +18,7 @@ from openseize.demos import paths
 from openseize.file_io import edf
 from openseize.file_io.annotations import Pinnacle
 
-from threshold import core, masking
+from threshold import masking
 
 
 @pytest.fixture(scope='module')
@@ -29,38 +29,43 @@ def rng():
     return np.random.default_rng(seed)
 
 
-@pytest.fixture(scope='module')
-def random1D(rng):
-    """Returns a random 1D array using rng."""
+def test_threshold():
+    """Test that threshold mask detects the correct number of spikes for each
+    std in nstds."""
 
-    return rng.random((234098,))
+    seed = 0
+    rng = np.random.default_rng(seed)
+
+    sig_len = 10000
+    x = rng.normal(loc=0, scale=1, size=(4, sig_len))
+    locs = rng.choice(np.arange(sig_len), size=(4, 20), replace=False)
+
+    print('locs', locs)
+
+    sigma_locs = [locs[:, ::3], locs[:, 1::3], locs[:, 2::3]]
+    cnts = [len(l.flatten()) for l in sigma_locs]
+
+    
+    
+    print('sigma_locs', sigma_locs)
+    print('cnts', cnts)
+    amplitudes = [4, 5, 6]
+    for locs, amplitude in zip(sigma_locs, amplitudes):
+        for row, spike_idxs in enumerate(locs):
+            x[row, spike_idxs] = amplitude
+
+    pro = producer(x, chunksize=1000, axis=-1)
+    masks = masking.threshold(pro, nstds=amplitudes)
+    print([np.count_nonzero(m) for m in masks])
+
+    """
+    for mask, cnt in zip(masks, [sum(cnts), sum(cnts[1:]), cnts[-1]]):
+        assert np.count_nonzero(mask) == 10000 - cnt
+    """
+
+    return x, masks, sigma_locs
 
 
-@pytest.fixture(scope='module', params=permutations(range(2)))
-def random2D(rng, request):
-    """Yields random 2D arrays varying the sample axis across all possible axes
-    permutations."""
-
-    axes = request.param
-    yield np.transpose(rng.random((197333, 6)), axes=axes)
-
-
-@pytest.fixture(scope='module', params=permutations(range(3)))
-def random3D(rng, request):
-    """Returns random 3D arrays varying the sample axis across all possible axes
-    permutations."""
-
-    axes = request.param
-    yield np.transpose(rng.random((100012, 6, 3)), axes=axes)
-
-
-@pytest.fixture(scope='module', params=permutations(range(4)))
-def random4D(rng, request):
-    """Returns random 4D arrays varying the sample axis across all possible axes
-    permutations."""
-
-    axes = request.param
-    yield np.transpose(rng.random((100012, 2, 3, 3)), axes=axes)
 
 
 def test_between_pro(rng):
@@ -116,7 +121,16 @@ def test_state_mask():
     
 
 
+if __name__ == '__main__':
 
+    import matplotlib.pyplot as plt
+    plt.ion()
 
-    
+    x, masks, sigma_locs = test_threshold()
+
+    plt.plot(x[0])
+    plt.scatter(sigma_locs[0], 4 * np.ones_like(sigma_locs[0]), 
+                label='4-Sigma events')
+    plt.legend()
+    plt.show()
 
