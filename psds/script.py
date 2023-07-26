@@ -42,7 +42,7 @@ def _preprocess(path, annotes, start, stop, fs, M, chunksize=30e5, axis=-1):
 
     reader = edf.Reader(path)
     reader.channels = [0, 1, 2]
-    a, b = [ann.time * fs for ann in annotes if ann.label in [start, stop]]
+    a, b = [int(ann.time * fs) for ann in annotes if ann.label in [start, stop]]
     pro = masking.between_pro(reader, a, b, chunksize, axis)
     
     # Notch filter the producer
@@ -158,7 +158,11 @@ def process_file(epath, apath, spath, nstds, verbose=False):
     return results
 
 def process_files(dirpaths, save_path, nstds, ncores=None):
-    """ """
+    """Processes all eeg, annotation and associated state files for each dir in
+    dirpaths.
+
+    This function would 
+    """
 
     t0 = time.perf_counter()
     results = [{} for _ in range(len(dirpaths))]
@@ -173,8 +177,7 @@ def process_files(dirpaths, save_path, nstds, ncores=None):
         # fix stds with partial
         f = partial(process_file, nstds=[4,5,6])
         with Pool(workers) as pool:
-            processed = pool.starmap(f, timers.Clockit(list(zip(epaths, apaths,
-                spaths))))
+            processed = pool.starmap(f, list(zip(epaths, apaths, spaths)))
 
         result.update(processed[0])
 
@@ -184,7 +187,7 @@ def process_files(dirpaths, save_path, nstds, ncores=None):
 
     print(f'processed {len(epaths)} files in {time.perf_counter() - t0} s')
 
-    return result
+    return results
 
 
 if __name__ == '__main__':
