@@ -3,6 +3,7 @@ import functools
 from itertools import zip_longest
 from typing import List, Optional, Union
 from pathlib import Path
+import warnings
 
 import numpy as np
 import numpy.typing as npt
@@ -62,12 +63,16 @@ def threshold(pro: Producer,
 
         mu = np.mean(arr, axis=axis, keepdims=True)
         std = np.std(arr, axis=axis, keepdims=True)
+        
+        # if a chunk is constant then arr - mu is all zeros
+        if not np.any(std):
+            std = np.ones_like(std)
 
         arr -= mu
         arr /= std
 
-        for std, mask in zip(nstds, masks):
-            _, cols = np.where(np.abs(arr) > std)
+        for sigma, mask in zip(nstds, masks):
+            _, cols = np.where(np.abs(arr) > sigma)
             cols = np.unique(cols + idx * pro.chunksize)
             mask[cols] = False
 
@@ -250,14 +255,24 @@ class MetaMask(ViewInstance):
     def mask(self):
         """Return the element-wise combination of all submasks in MetaMask."""
 
-        return functools.reduce(self.logical, self.submasks.values())
+        # if masks are of unequal length, truncate masks to equal length
+        submasks = list(self.submasks.values())
+        lengths = np.array([len(m) for m in submasks])
+        if any(lengths-min(lengths)):
+            msg = (f'length of mask do not equal {lengths[0]} != {lengths[1]}.'
+            ' Truncating mask!')
+            warnings.warn(msg)
+            submasks = [mask[:min(lengths)] for mask in submasks]
+
+        return functools.reduce(self.logical, submasks)
 
 if __name__ == '__main__':
 
     from openseize.file_io import edf
     from openseize import producer
     import numpy as np
-    
+   
+    """
     # make a random array with 50 spikes in each row
     rng = np.random.default_rng(0)
     x = rng.normal(loc=0, scale=1.0, size=(4,1000))
@@ -267,5 +282,13 @@ if __name__ == '__main__':
     # make a producer from spiked data
     pro = producer(x, chunksize=100, axis=-1)
     mask = threshold(pro, nstds=[2])[0]
+    """
+
+    rng = np.random.default_rng(0)
+    mask_a = rng.choice([True, False], size=1000)
+    mask_b = rng.choice([True, False], size=1000)
+
+    metamask = MetaMask([mask_a, mask_b], ['a', 'b'])
+    print(len(metamask.mask))
     
 
