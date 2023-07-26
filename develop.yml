@@ -1,7 +1,7 @@
 # requirements for deepseize's development environment
 name: threshold
 dependencies:
-  - numpy = 1.23.4
+  - numpy
   - scipy
   - matplotlib
   - ipython
