@@ -157,6 +157,7 @@ def process_file(epath, apath, spath, nstds, verbose=False):
 
     return results
 
+
 def process_files(dirpaths, save_path, nstds, ncores=None):
     """Processes all eeg, annotation and associated state files for each dir in
     dirpaths.
@@ -186,11 +187,11 @@ def process_files(dirpaths, save_path, nstds, ncores=None):
         with Pool(workers) as pool:
             processed = pool.starmap(f, paths)
 
-        result.update(processed[0])
+        [result.update(dic) for dic in processed]
 
     # save data
     with open(Path(save_path).joinpath('psds.pkl'), 'wb') as outfile:
-        pickle.dump(result, outfile)
+        pickle.dump(results, outfile)
 
     print(f'processed {len(paths)} files in {time.perf_counter() - t0} s')
 
@@ -213,7 +214,8 @@ if __name__ == '__main__':
     #psd_dict = process_file(epath, apath, spath, nstds=[4,5,6], verbose=True)
     """
     
-    dirpaths = ['/media/matt/Zeus/jasmine/stxbp1/']
+    dirpaths = ['/media/matt/Zeus/jasmine/stxbp1/',
+                '/media/matt/Zeus/jasmine/ube3a/']
     save_path = '/media/matt/Zeus/jasmine/results'
 
     psds = process_files(dirpaths, save_path=save_path, nstds=[4,5,6])
