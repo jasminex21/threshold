@@ -27,12 +27,12 @@ from pathlib import Path
 from multiprocessing import Pool
 
 from openseize import producer
-from openseize.file_io import annotations, edf
+from openseize.file_io import annotations, edf, path_utils
 from openseize.filtering.iir import Notch
 from openseize.resampling import resampling
 from openseize.spectra import estimators
 
-from threshold.tools import concurrency, timers
+from threshold.tools import concurrency
 from threshold import masking
 
 
@@ -172,12 +172,19 @@ def process_files(dirpaths, save_path, nstds, ncores=None):
         apaths = list(Path(dirpath).glob('*.txt'))
         spaths = list(Path(dirpath).glob('*.csv'))
 
-        workers = concurrency.set_cores(ncores, len(epaths))
+        # use regex matching to match on animal names
+        a = path_utils.re_match(epaths, apaths, r'\w+_')
+        b = path_utils.re_match(epaths, spaths, r'\w+_')
+        paths = []
+        for (epath, apath), (epath, spath) in zip(a, b):
+            paths.append((epath, apath, spath))
+
+        workers = concurrency.set_cores(ncores, len(paths))
 
         # fix stds with partial
         f = partial(process_file, nstds=[4,5,6])
         with Pool(workers) as pool:
-            processed = pool.starmap(f, list(zip(epaths, apaths, spaths)))
+            processed = pool.starmap(f, paths)
 
         result.update(processed[0])
 
@@ -185,7 +192,7 @@ def process_files(dirpaths, save_path, nstds, ncores=None):
     with open(Path(save_path).joinpath('psds.pkl'), 'wb') as outfile:
         pickle.dump(result, outfile)
 
-    print(f'processed {len(epaths)} files in {time.perf_counter() - t0} s')
+    print(f'processed {len(paths)} files in {time.perf_counter() - t0} s')
 
     return results
 
@@ -206,7 +213,7 @@ if __name__ == '__main__':
     #psd_dict = process_file(epath, apath, spath, nstds=[4,5,6], verbose=True)
     """
     
-    dirpaths = ['/media/matt/Zeus/jasmine/stxbp1_test/']
+    dirpaths = ['/media/matt/Zeus/jasmine/stxbp1/']
     save_path = '/media/matt/Zeus/jasmine/results'
 
     psds = process_files(dirpaths, save_path=save_path, nstds=[4,5,6])
