@@ -5,7 +5,7 @@
 
 # Introduction
 
-The sources of artifacts in electroencephalogram (EEG) data is highly varied.
+The sources of artifacts in electroencephalogram (EEG) data are highly varied.
 Body motions, eye movements, breathing, electrical interference and more induce
 small voltage changes at the electrode contacts used to measure the EEG. Despite
 their ubiquitous presence, it is unclear what types of signal processing
