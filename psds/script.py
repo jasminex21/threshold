@@ -54,7 +54,7 @@ def _preprocess(path, annotes, start, stop, fs, M, chunksize=30e5, axis=-1):
     return result
 
 
-def _masks(epath, apath, spath, nstds=[4,5,6], verbose=False):
+def _masks(epath, apath, spath, nstds=[3, 4,5,6], verbose=False):
     """Returns a list of Metamask instances for the following conditions:
 
     awake
@@ -93,8 +93,11 @@ def _masks(epath, apath, spath, nstds=[4,5,6], verbose=False):
 
     # construct manually annotated boolean
     annote = masking.artifact(apath, size=pro.shape[-1],
-                        labels=[ 'Artifact', 'Artifact ', 'water', 'water '],
-                        fs=250, between=['Start', 'Stop'])
+                              labels=['Artifact', 
+                                      'Artifact ',
+                                      'water_drinking',
+                                      'water_drinking '],
+                              fs=250, between=['Start', 'Stop'])
     
     # build awake and sleep booleans
     awake = masking.state(spath, ['w'], fs=250, winsize=4)
@@ -118,7 +121,8 @@ def _masks(epath, apath, spath, nstds=[4,5,6], verbose=False):
 
     # build awake and sleep without artifact removal
     for mask, name in zip([awake, sleep], ['awake', 'sleep']):
-        metamasks.append(masking.MetaMask([mask], [name]))
+        dummy = np.ones(pro.shape[-1])
+        metamasks.append(masking.MetaMask([mask, dummy], [name, '']))
         
     if verbose:
         print(f'build masks completed in {time.perf_counter() - t0} s')
@@ -218,7 +222,7 @@ if __name__ == '__main__':
                 '/media/matt/Zeus/jasmine/ube3a/']
     save_path = '/media/matt/Zeus/jasmine/results'
 
-    psds = process_files(dirpaths, save_path=save_path, nstds=[4,5,6])
+    psds = process_files(dirpaths, save_path=save_path, nstds=[3, 4,5,6])
 
 
 

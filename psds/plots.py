@@ -4,23 +4,6 @@ import matplotlib.pyplot as plt
 from openseize.spectra.metrics import confidence_interval
 from openseize.spectra.plotting import banded
 
-rng = np.random.default_rng(0)
-freqs = np.arange(0, 250, 0.5)
-data = [
-        {'cw01': {'awake': (100, freqs, rng.random((3,500))),
-                  'awake + threshold =4': (100, freqs, rng.random((3,500))),
-                  'sleep': (100, freqs, rng.random((3,500))),
-                  'sleep + threshold =4': (100, freqs, rng.random((3,500)))}
-
-        },
-        
-        {'DL0ube3': {'awake': (100, freqs, rng.random((3,500))),
-                     'awake + threshold =4': (100, freqs, rng.random((3,500))),
-                     'sleep': (100, freqs, rng.random((3,500))),
-                     'sleep + threshold =4': (100, freqs, rng.random((3,500)))}
-        }
-        ]
-
 def plot_psds(data, genotype,  name, normalize=False):
     """ """
     
@@ -39,7 +22,8 @@ def plot_psds(data, genotype,  name, normalize=False):
                 axarr[state_idx, ch_idx].plot(freqs, ch_psd, label=label)
                 
                 ci = confidence_interval(ch_psd, cnt, alpha=0.05)
-                banded(freqs, *ci[0], ax=axarr[state_idx, ch_idx])
+                lowers, uppers = list(zip(*ci))
+                banded(freqs, lowers, uppers, ax=axarr[state_idx, ch_idx])
 
         axarr[state_idx, -1].legend(loc='upper right')
 
@@ -50,6 +34,7 @@ def plot_psds(data, genotype,  name, normalize=False):
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
 
+    [axarr[0, idx].title(f'Ch {idx}') for idx in range(3)]
     axarr[1, 0].set_xlabel('Frequency (Hz)', fontsize=14)
     axarr[1,0].set_ylabel(r'$V^2 /\ Hz$', fontsize=14)
     
