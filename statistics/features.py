@@ -5,9 +5,11 @@ import numpy as np
 
 
 def psd_results(psd_dict, geno, condition='awake'):
-    """generator returning all psds for all states containing state=awake"""
+    """Returns PSD tuple results for all states in psd_dict containing
+    condition."""
 
     return {state_tuple: [psd_tuples on per animal]}
+
 
 def mse(a, b, axis=-1):
     """Returns the mean squared error between ndarrays a and b along axis.
@@ -26,25 +28,6 @@ def mse(a, b, axis=-1):
     """
 
     return np.sum((a - b)**2, axis=axis)
-
-
-def max_height(x, y, axis=-1):
-    """Returns the x location at which each slice in y is maximal along axis.
-
-    Args:
-        x:
-            A 1-D array of locations that must match the shape of y along axis.
-        y:
-            An ndarray whose max height is to be measured along axis.
-        axis:
-            The sample axis along which the heights are to be measured.
-
-    Returns:
-        An array of x-locations with one-less dimension than y.
-    """
-
-   indices = np.argmax(y, axis=axis) 
-   return x[indices]
 
 
 def peaks(x, **kwargs):
