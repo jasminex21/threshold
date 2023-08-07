@@ -54,7 +54,7 @@ def _preprocess(path, annotes, start, stop, fs, M, chunksize=30e5, axis=-1):
     return result
 
 
-def _masks(epath, apath, spath, nstds=[3, 4,5,6], verbose=False):
+def _masks(epath, apath, spath, radius, nstds=[3, 4,5,6], verbose=False):
     """Returns a list of Metamask instances for the following conditions:
 
     awake
@@ -89,7 +89,7 @@ def _masks(epath, apath, spath, nstds=[3, 4,5,6], verbose=False):
     pro = _preprocess(epath, annotes, 'Start', 'Stop', fs=5000, M=20)
 
     # threshold preprocessed by computing a boolean for each std in nstds
-    thresholds = masking.threshold(pro, nstds, chunksize=1.5e4)
+    thresholds = masking.threshold(pro, nstds, chunksize=1.5e4, radius=radius)
 
     # construct manually annotated boolean
     annote = masking.artifact(apath, size=pro.shape[-1],
@@ -130,12 +130,12 @@ def _masks(epath, apath, spath, nstds=[3, 4,5,6], verbose=False):
     return metamasks
 
 
-def process_file(epath, apath, spath, nstds, verbose=False):
+def process_file(epath, apath, spath, radius, nstds, verbose=False):
     """Returns a nested dictionary with animal name as the outer key and
     a condition tuple as the inner key storing openseize psd tuple results."""
 
     t0 = time.perf_counter()
-    metamasks = _masks(epath, apath, spath, nstds)
+    metamasks = _masks(epath, apath, spath, radius, nstds)
 
     # open annotes
     with annotations.Pinnacle(apath, start=6) as reader:
@@ -162,7 +162,7 @@ def process_file(epath, apath, spath, nstds, verbose=False):
     return results
 
 
-def process_files(dirpaths, save_path, nstds, ncores=None):
+def process_files(dirpaths, save_path, radius, nstds, ncores=None):
     """Processes all eeg, annotation and associated state files for each dir in
     dirpaths.
 
@@ -187,7 +187,7 @@ def process_files(dirpaths, save_path, nstds, ncores=None):
         workers = concurrency.set_cores(ncores, len(paths))
 
         # fix stds with partial
-        f = partial(process_file, nstds=[4,5,6])
+        f = partial(process_file, radius=radius, nstds=nstds)
         with Pool(workers) as pool:
             processed = pool.starmap(f, paths)
 
@@ -222,7 +222,7 @@ if __name__ == '__main__':
                 '/media/matt/Zeus/jasmine/ube3a/']
     save_path = '/media/matt/Zeus/jasmine/results'
 
-    psds = process_files(dirpaths, save_path=save_path, nstds=[3, 4,5,6])
+    psds = process_files(dirpaths, save_path=save_path, radius=125, nstds=[3, 4,5,6])
 
 
 
