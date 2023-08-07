@@ -12,10 +12,12 @@ from openseize.core.producer import Producer
 from openseize.file_io import annotations
 from openseize.core.mixins import ViewInstance
 
+from threshold import arraytools
+
 
 def threshold(pro: Producer,
               nstds: List[float],
-              chunksize: Optional[int]=None,
+              chunksize: Optional[int]=None, radius: Optional[int] = None,
 ) -> List[npt.NDArray]:
     """Returns a list of 1-D boolean arrays, one per std in nstds, that denote
     samples from the producer whose normalized voltage values exceed that std.
@@ -31,6 +33,9 @@ def threshold(pro: Producer,
             The number of samples the producer will produce during iteration.
             This value determines the local mean and standard deviation for
             thresholding.
+        radius:
+            The distance between two False samples indices below which all
+            intermediate samples will be filled with False values in the mask.
 
     Examples:
         >>> from openseize.file_io import edf
@@ -75,6 +80,13 @@ def threshold(pro: Producer,
             _, cols = np.where(np.abs(arr) > sigma)
             cols = np.unique(cols + idx * pro.chunksize)
             mask[cols] = False
+    
+    # merge False values within radius samples of each other
+    if radius:
+
+        for mask in masks:
+            for epoch in arraytools.aggregate1d(~mask, radius):
+                mask[slice(*epoch)] = False
 
     return masks
     
