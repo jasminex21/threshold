@@ -6,6 +6,7 @@ import numpy as np
 import numpy.typing as npt
 import time
 import pickle
+from collections import defaultdict
 from functools import partial
 from pathlib import Path
 from multiprocessing import Pool
@@ -13,6 +14,7 @@ from multiprocessing import Pool
 from openseize.file_io import annotations, path_utils
 from threshold.psds.script import _masks
 from threshold.tools import concurrency
+from threshold.statistics.artifacts import events
 
 
 def _tp(arr, actual):
@@ -115,92 +117,80 @@ def _fn(arr, actual):
     return len(np.where((y-x) > 0)[0])
 
 
-def accuracy(arr: npt.NDArray, actual: npt.NDArray):
+def accuracy(tp, tn, fp, fn):
     """Returns the accuracy between two 1-D boolean classification arrays.
 
     The accuracy is the number of correct classifications divided by all 
     classifications (TP + TN) / (TP + TN + FP + FN).
 
-    Args:
-        arr:
-            A 1-D boolean of measured binary classifications.
-        actual:
-            A 1-D boolean array of ground-truth binary classifications.
-
     Returns:
         A float accuracy value.
     """
 
-    tp = _tp(arr, actual)
-    tn = _tn(arr, actual)
-    fp = _fp(arr, actual)
-    fn = _fn(arr, actual)
-
     return (tp + tn) / (tp + tn + fp + fn)
 
 
-def sensitivity(arr: npt.NDArray, actual: npt.NDArray):
+def sensitivity(tp, fn):
     """Returns the sensitivity between two 1-D boolean classification arrays.
 
     The sensitivity is "how many did I catch out of all the ones I want to find"
-
-    Args:
-        arr:
-            A 1-D boolean of measured binary classifications.
-        actual:
-            A 1-D boolean array of ground-truth binary classifications.
 
     Returns:
         A float sensitivity value.
     """
 
-    tp = _tp(arr, actual)
-    fn = _fn(arr, actual)
-
     return tp / (tp + fn)
 
 
-def specificity(arr: npt.NDArray, actual: npt.NDArray):
+def specificity(tn, fp):
     """Returns the specificity between two 1-D boolean classification arrays.
 
     The sensitivity is "how many did I ignore out of all the ones I want to
     ignore"
 
-    Args:
-        arr:
-            A 1-D boolean of measured binary classifications.
-        actual:
-            A 1-D boolean array of ground-truth binary classifications.
-
     Returns:
         A float sensitivity value.
     """
-
-    tn = _tn(arr, actual)
-    fp = _fp(arr, actual)
 
     return tn / (tn + fp)
 
 
-def precision(arr: npt.NDArray, actual: npt.NDArray):
+def precision(tp, fp):
     """Returns the precision between two 1-D boolean classification arrays.
 
     The precision is "how many did I correctly catch out of all the ones caught."
-
-    Args:
-        arr:
-            A 1-D boolean of measured binary classifications.
-        actual:
-            A 1-D boolean array of ground-truth binary classifications.
 
     Returns:
         A float sensitivity value.
     """
 
-    tp = _tp(arr, actual)
-    fp = _fp(arr, actual)
-
     return tp / (tp + fp)
+
+
+def percent_within(arr: npt.NDArray, actual: npt.NDArray):
+    """Returns the percentage of False indices in arr that are within False runs
+    in actual.
+
+    Args:
+        arr:
+            A 1-D array of binary classifications.
+        actual:
+            A 1-D array of ground-truth binary classifications.
+
+    Returns:
+        The percentage of False elements in arr whose indices are between False
+        indices in actual.
+    """
+
+    epochs = events(~actual).flatten()
+    detected = np.flatnonzero(~arr)
+
+    # locate where detected would be inserted into epochs
+    insertions = np.searchsorted(epochs, detected, 'right')
+    # only odd insertions lie within an epoch
+    odds = [x for x in insertions if x % 2 == 1]
+    
+    return len(odds) / len(detected)
 
 
 def _build(epath, apath, spath, radius, nstds):
@@ -220,10 +210,13 @@ def _build(epath, apath, spath, radius, nstds):
 
     results = {}
     name = epath.stem.split('_')[0]
-    results[name] = _masks(epath, apath, spath, radius, nstds)
+    metamasks = _masks(epath, apath, spath, radius, nstds)
 
+    # don't store metamasks just combined masks
+    masks = {tuple(m.submasks.keys()): m.mask for m in metamasks}
+    results[name] = masks
+    
     print(f'Mask estimated for file {name} complete')
-
     return results
 
 
@@ -267,13 +260,44 @@ def build_masks(dirpaths, save_path, radius, nstds, ncores=None):
 
         [result.update(dic) for dic in processed]
 
+    print(f'processed {len(paths)} files in {time.perf_counter() - t0} s')
+
     # save data
     with open(Path(save_path).joinpath('masks.pkl'), 'wb') as outfile:
         pickle.dump(results, outfile)
-
-    print(f'processed {len(paths)} files in {time.perf_counter() - t0} s')
-
+    
     return results
+
+
+def evaluate(masks_dict):
+    """Compares the classifications of thresholded masks with annotated masks
+    for all awake condition masks in masks_dict."""
+
+    accuracies = defaultdict(list)
+    sensitivities = defaultdict(list)
+    specificities = defaultdict(list)
+    precisions = defaultdict(list)
+    percent_withins = defaultdict(list)
+    n = len(masks_dict)
+    for idx, (name, conditional_masks) in enumerate(masks_dict.items(), 1):
+        
+        print(f'Evaluation file {idx}/{n}', end='\r')
+        actual = conditional_masks[('awake', 'annote')]
+        detected = {tup: mask for tup, mask in conditional_masks.items() if
+                    'awake' in tup[0] and 'threshold' in tup[1]}
+
+        for tup, mask in detected.items():
+            tp = _tp(mask, actual)
+            tn = _tn(mask, actual)
+            fp = _fp(mask, actual)
+            fn = _fn(mask, actual) 
+            accuracies[tup].append(accuracy(tp, tn, fp, fn))
+            sensitivities[tup].append(sensitivity(tp, fn))
+            specificities[tup].append(specificity(tn, fp))
+            precisions[tup].append(precision(tp, fp))
+            percent_withins[tup].append(percent_within(mask, actual))
+
+    return accuracies, sensitivities, specificities, precisions, percent_withins 
 
 
 
@@ -294,4 +318,14 @@ if __name__ == '__main__':
     results = _build(epath, apath, spath, radius=125, nstds=[5,6])
     """
     
-    build_masks(dirpaths, save_path, radius=None, nstds=[4,5,6])
+    #results = build_masks(dirpaths, save_path, radius=None, nstds=[3, 4, 5, 6])
+
+    mask_path = '/media/matt/Zeus/jasmine/results/masks.pkl'
+
+    with open(mask_path, 'rb') as infile:
+        masks = pickle.load(infile)
+
+    stxbp1_masks, ube3a_masks = masks
+
+    accs, sens, specs, precs, withins = evaluate(stxbp1_masks)
+    
