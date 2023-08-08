@@ -25,6 +25,7 @@ from functools import partial
 from itertools import zip_longest
 from pathlib import Path
 from multiprocessing import Pool
+import numpy as np
 
 from openseize import producer
 from openseize.file_io import annotations, edf, path_utils

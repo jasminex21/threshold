@@ -4,6 +4,15 @@
 
 import numpy as np
 import numpy.typing as npt
+import time
+import pickle
+from functools import partial
+from pathlib import Path
+from multiprocessing import Pool
+
+from openseize.file_io import annotations, path_utils
+from threshold.psds.script import _masks
+from threshold.tools import concurrency
 
 
 def _tp(arr, actual):
@@ -194,6 +203,95 @@ def precision(arr: npt.NDArray, actual: npt.NDArray):
     return tp / (tp + fp)
 
 
+def _build(epath, apath, spath, radius, nstds):
+    """Builds all metamasks for a single eeg file.
+
+    Args:
+        epath:
+            Path to an eeg file
+        apath:
+            Path to annotation file associated with eeg at epath
+        spath:
+            Path to a spindle state file associated with eeg at epath.
+        radius:
+            The max distance between two masked samples that will be filled with
+            False.
+    """
+
+    results = {}
+    name = epath.stem.split('_')[0]
+    results[name] = _masks(epath, apath, spath, radius, nstds)
+
+    print(f'Mask estimated for file {name} complete')
+
+    return results
+
+
+def build_masks(dirpaths, save_path, radius, nstds, ncores=None):
+    """Builds a 2-el list of dicts containing metamasks for each file in dirpath
+    of dirpaths.
+
+    Args:
+        epath:
+            Path to an eeg file
+        apath:
+            Path to annotation file associated with eeg at epath
+        spath:
+            Path to a spindle state file associated with eeg at epath.
+        radius:
+            The max distance between two masked samples that will be filled with
+            False.
+ """
+
+    t0 = time.perf_counter()
+    results = [{} for _ in range(len(dirpaths))]
+    for result, dirpath in zip(results, dirpaths):
+
+        epaths = list(Path(dirpath).glob('*.edf'))
+        apaths = list(Path(dirpath).glob('*.txt'))
+        spaths = list(Path(dirpath).glob('*.csv'))
+
+        # use regex matching to match on animal names
+        a = path_utils.re_match(epaths, apaths, r'\w+_')
+        b = path_utils.re_match(epaths, spaths, r'\w+_')
+        paths = []
+        for (epath, apath), (epath, spath) in zip(a, b):
+            paths.append((epath, apath, spath))
+
+        workers = concurrency.set_cores(ncores, len(paths))
+
+        # fix stds with partial
+        f = partial(_build, radius=radius, nstds=nstds)
+        with Pool(workers) as pool:
+            processed = pool.starmap(f, paths)
+
+        [result.update(dic) for dic in processed]
+
+    # save data
+    with open(Path(save_path).joinpath('masks.pkl'), 'wb') as outfile:
+        pickle.dump(results, outfile)
+
+    print(f'processed {len(paths)} files in {time.perf_counter() - t0} s')
+
+    return results
 
 
 
+if __name__ == '__main__':
+
+
+    dirpaths = ['/media/matt/Zeus/jasmine/stxbp1/',
+                '/media/matt/Zeus/jasmine/ube3a/']
+    save_path = '/media/matt/Zeus/jasmine/results/'
+
+    """
+    base_path = Path('/media/matt/Zeus/jasmine/stxbp1/')
+    name = 'CW0DA1_P096_KO_15_53_3dayEEG_2020-04-13_08_58_30'
+    epath = base_path.joinpath(name + '.edf')
+    apath = base_path.joinpath(name + '.txt')
+    spath = base_path.joinpath(name + '_sleep_states.csv')
+
+    results = _build(epath, apath, spath, radius=125, nstds=[5,6])
+    """
+    
+    build_masks(dirpaths, save_path, radius=None, nstds=[4,5,6])
