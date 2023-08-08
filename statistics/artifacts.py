@@ -80,17 +80,3 @@ def durations(*masks, logic=np.logical_and):
 
     runs = events(*mask, logic=logic)
     return np.diff(runs, axis=-1)
-
-
-
-if __name__ == '__main__':
-
-    # For Jasmine
-    # 1. Test that events returns the correct events if the mask (a) starts with
-    #    Trues, (b) ends with Trues, or (c) starts and ends with Trues by
-    #    supplying a hand-made small mask
-    # 2. Test that count gives the correct count for a small handmade mask
-    # 3. Test that duration gives the correct durations for a small handmade
-    #    mask
-    # If time and interest turn these small test into formal pytest in the
-    # testing module of threshold.
