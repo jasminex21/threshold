@@ -281,21 +281,21 @@ def evaluate(masks_dict):
     n = len(masks_dict)
     for idx, (name, conditional_masks) in enumerate(masks_dict.items(), 1):
         
-        print(f'Evaluation file {idx}/{n}', end='\r')
+        print(f'Evaluating file {idx}/{n}', end='\r')
         actual = conditional_masks[('awake', 'annote')]
         detected = {tup: mask for tup, mask in conditional_masks.items() if
                     'awake' in tup[0] and 'threshold' in tup[1]}
 
         for tup, mask in detected.items():
-            tp = _tp(mask, actual)
-            tn = _tn(mask, actual)
-            fp = _fp(mask, actual)
-            fn = _fn(mask, actual) 
+            tp = _tp(~mask, ~actual)
+            tn = _tn(~mask, ~actual)
+            fp = _fp(~mask, ~actual)
+            fn = _fn(~mask, ~actual) 
             accuracies[tup].append(accuracy(tp, tn, fp, fn))
             sensitivities[tup].append(sensitivity(tp, fn))
             specificities[tup].append(specificity(tn, fp))
             precisions[tup].append(precision(tp, fp))
-            percent_withins[tup].append(percent_within(mask, actual))
+            percent_withins[tup].append(percent_within(~mask, ~actual))
 
     return accuracies, sensitivities, specificities, precisions, percent_withins 
 
